@@ -1,9 +1,16 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-const PORT = 3000;
+const io = require('socket.io')(http, {
+  cors: {
+    origin: "*"
+  }
+});
 
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
 app.use(express.static('public'));
 
 const devices = {}; // Track all current device locations
@@ -30,5 +37,5 @@ io.on('connection', (socket) => {
 });
 
 http.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
