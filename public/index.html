@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>All Devices Live Tracker</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #map { height: 100vh; width: 100vw; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const socket = io();
+    const map = L.map('map').setView([22.5726, 88.3639], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const markers = {};
+
+    // Show initial locations of all connected users
+    socket.on('initialLocations', (devices) => {
+      Object.keys(devices).forEach(id => {
+        const { lat, lng, accuracy } = devices[id];
+        markers[id] = L.marker([lat, lng])
+          .addTo(map)
+          .bindPopup(`Device: ${id}<br>Accuracy: ±${Math.round(accuracy)}m`)
+          .openPopup();
+      });
+    });
+
+    // Handle real-time location updates
+    socket.on('updateLocation', ({ id, lat, lng, accuracy }) => {
+      if (markers[id]) {
+        markers[id].setLatLng([lat, lng]);
+        markers[id].getPopup().setContent(`Device: ${id}<br>Accuracy: ±${Math.round(accuracy)}m`);
+      } else {
+        markers[id] = L.marker([lat, lng])
+          .addTo(map)
+          .bindPopup(`Device: ${id}<br>Accuracy: ±${Math.round(accuracy)}m`)
+          .openPopup();
+      }
+    });
+
+    // Remove marker on disconnect
+    socket.on('removeDevice', ({ id }) => {
+      if (markers[id]) {
+        map.removeLayer(markers[id]);
+        delete markers[id];
+      }
+    });
+
+    // Use real GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const accuracy = position.coords.accuracy;
+          socket.emit('deviceLocation', { id: socket.id, lat, lng, accuracy });
+        },
+        (err) => console.error('Geolocation error:', err),
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 5000
+        }
+      );
+    } else {
+      alert("Geolocation not supported.");
+    }
+  </script>
+</body>
+</html>
